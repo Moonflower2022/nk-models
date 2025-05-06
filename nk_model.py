@@ -2,7 +2,6 @@ import random
 from itertools import product
 import copy
 from collections import defaultdict
-import graphviz
 
 def add_binary_array(nodes):
     """turn a list of boolean ints that represents binary (left is higher) to a decimal int"""
@@ -26,6 +25,9 @@ def get_new_node(nodes, input_paths, functions, i):
     return functions[i][
         sum(nodes[input_paths[i][j]] * 2**j for j in range(len(input_paths[i])))
     ]
+
+def get_all_nodes(node_num):
+    return product((0, 1), repeat=node_num)
 
 
 def iterate(nodes, input_paths, functions):
@@ -74,7 +76,7 @@ def get_num_cycles(node_num, input_num, verbose=False, input_paths=None, functio
     cycle_starts = []
     cycled_nodes = []
 
-    all_nodes = product((0, 1), repeat=node_num)
+    all_nodes = get_all_nodes(node_num)
     input_paths = input_paths or generate_input_paths(node_num, input_num)
     functions = functions or generate_functions(node_num, input_num)
     for nodes in all_nodes:
@@ -196,6 +198,8 @@ class NKModel:
         print(self.nodes)
 
     def generate_graph(self):
+        import graphviz
+
         dot = graphviz.Digraph(comment='NKModel Graph')
         visited_nodes = set()
 
