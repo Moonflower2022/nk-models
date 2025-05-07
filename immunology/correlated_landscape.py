@@ -17,7 +17,8 @@ def get_gene_correlation(model, i):
     return gene_correlation
 
 def climb(model, fitness_function):
-    best_score = 0
+    best_score = fitness_function(model)
+    best_nodes = [*model.nodes]
     for i in range(model.n):
         model.nodes[i] = 1 - model.nodes[i]
         new_score = fitness_function(model)
@@ -52,7 +53,7 @@ def run_experiment(node_num, inputs_num, iterations):
         while True:
             climb(model, fitness_function)
             new_score = fitness_function(model)
-            if new_score < best_score:
+            if new_score <= best_score:
                 break
             best_score = new_score
         best_indicies.append(fitness_index[best_score])
@@ -98,5 +99,124 @@ def plot_landscape():
     plt.xlabel("genotype in decimal form")
     plt.show()
 
+def plot_peak_neighborhood(compact=False):
+    """
+    Finds a peak using the climb function and plots the fitness values of all nodes
+    that are one mutation away from it. Optimized for performance.
+    
+    Parameters:
+    -----------
+    compact : bool, optional
+        If True, creates a compact version of the plot without labels and with narrow bars.
+        Default is False.
+    """
+    node_num = 100
+    inputs_num = 2
+    
+    # Create the model
+    model = NKModel(node_num, inputs_num)
+    
+    # Create fitness function - optimize by pre-calculating only what's needed
+    # Instead of generating all possible node combinations, we'll generate fitness
+    # contributions only for the nodes we evaluate
+    fitness_contributions = {}
+    
+    def fitness_function(model):
+        nodes_tuple = tuple(model.nodes)
+        # Generate fitness contribution if we haven't seen this configuration
+        if nodes_tuple not in fitness_contributions:
+            fitness_contributions[nodes_tuple] = np.random.random(node_num)
+        
+        fitness_contribution = fitness_contributions[nodes_tuple]
+        # Pre-calculate gene correlations for efficiency
+        gene_correlations = [get_gene_correlation(model, i) for i in range(model.n)]
+        return sum(fitness_contribution.dot(gene_corr) for gene_corr in gene_correlations) / model.n
+    
+    # Initialize model with random starting position and find peak
+    model.nodes = model.init_nodes()
+    
+    # Direct hill climbing to find a peak
+    current_fitness = fitness_function(model)
+    improved = True
+    
+    while improved:
+        improved = False
+        climb(model, fitness_function)
+        new_fitness = fitness_function(model)
+        if new_fitness > current_fitness:
+            current_fitness = new_fitness
+            improved = True
+        else:
+            break
+    
+    peak_fitness = current_fitness
+    print(f"Found peak with fitness: {peak_fitness:.6f}")
+    
+    # Store original peak nodes
+    original_nodes = model.nodes.copy()
+    
+    # Pre-allocate arrays for faster operations
+    neighbor_fitnesses = np.zeros(node_num)
+    
+    # Generate fitness values for all neighbors
+    for i in range(node_num):
+        # Mutate one bit
+        model.nodes[i] = 1 - model.nodes[i]
+        
+        # Calculate fitness of this neighbor
+        neighbor_fitnesses[i] = fitness_function(model)
+        
+        # Restore the original node
+        model.nodes[i] = original_nodes[i]
+    
+    # Create a simple linear scale for x-axis
+    positions = np.arange(node_num)
+    
+    # Create the figure - compact version has smaller figure size
+    fig_size = (12, 6) if not compact else (8, 4)
+    plt.figure(figsize=fig_size)
+    
+    # Create a bar plot with neighbor fitness values
+    if compact:
+        # For compact mode, make bars touch each other
+        bar_width = 1.0
+        plt.bar(positions, neighbor_fitnesses, width=bar_width, color='blue', align='edge', edgecolor=None)
+    else:
+        bar_width = 0.8
+        plt.bar(positions, neighbor_fitnesses, width=bar_width, color='blue')
+    
+    # Add a horizontal line for the peak node's fitness
+    plt.axhline(y=peak_fitness, color='red', linestyle='-', 
+                label=None if compact else f'Peak Fitness: {peak_fitness:.6f}')
+    
+    title = f"Neighborhood of peak in landscape with {node_num} nodes and K={inputs_num}"
+    if compact:
+        title = f"Compact: {title}"
+    plt.title(title)
+    
+    if not compact:
+        plt.ylabel("Fitness")
+        plt.xlabel("Bit position changed")
+        labels = [f"Flip bit {i}" for i in range(node_num)]
+        plt.xticks(positions, labels, rotation=45, ha='right')
+        plt.legend()
+        
+        # Add text annotation for the fitness values
+        for i, fitness in enumerate(neighbor_fitnesses):
+            plt.text(positions[i], fitness, f"{fitness:.3f}", ha='center', va='bottom')
+    else:
+        # For compact version, minimal or no labels
+        plt.xticks([])  # Remove x-axis ticks
+        plt.tick_params(axis='both', which='both', labelsize=8)
+    
+    plt.tight_layout()
+    plt.show()
+
+    print(f"Peak node fitness: {peak_fitness:.6f}")
+    print(f"Average neighbor fitness: {np.mean(neighbor_fitnesses):.4f}")
+    print(f"Max neighbor fitness: {max(neighbor_fitnesses):.4f}")
+    print(f"Min neighbor fitness: {min(neighbor_fitnesses):.4f}")
+
 if __name__ == "__main__":
-    plot_landscape()
+    plot_efficiency()
+    # plot_peak_neighborhood(compact=True)
