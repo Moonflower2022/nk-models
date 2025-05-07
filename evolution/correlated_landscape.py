@@ -29,12 +29,23 @@ def climb(model, fitness_function):
         model.nodes[i] = 1 - model.nodes[i]
     model.nodes = best_nodes
 
-def run_experiment(node_num, inputs_num, iterations):
-    fitness_contributions = {tuple(nodes): np.random.random(node_num) for nodes in get_all_nodes(node_num)}
-    def fitness_function(model):
-        fitness_contribution = fitness_contributions[tuple(model.nodes)]
+def fitness_function(model, fitness_contributions):
+    total = 0
+    for i in range(model.n):
+        correlated_gene = np.zeros(model.n) - 1
+        correlated_gene[i] = model.nodes[i]
+        for input_index in model.input_paths[i]:
+            correlated_gene[input_index] = model.nodes[input_index]
+        if not tuple(correlated_gene) in fitness_contributions:
+            fitness_contributions[tuple(correlated_gene)] = random.random()
+        total += fitness_contributions[tuple(correlated_gene)]
 
-        return sum([fitness_contribution.dot(get_gene_correlation(model, i)) for i in range(model.n)]) / model.n
+    return total / model.n
+
+def run_experiment(node_num, inputs_num, iterations):
+    fitness_contributions = {}
+
+    default_fitness_function = lambda model: fitness_function(model, fitness_contributions)
 
     best_indicies = []
     for _ in range(iterations):
@@ -42,7 +53,7 @@ def run_experiment(node_num, inputs_num, iterations):
         fitnesses = []
         for nodes in get_all_nodes(node_num):
             model.nodes = nodes
-            fitnesses.append(fitness_function(model))
+            fitnesses.append(default_fitness_function(model, ))
         fitness_sorted = sorted(fitnesses, reverse=True)
         fitness_index = {fitness: index for index, fitness in enumerate(fitness_sorted)}
 
@@ -51,8 +62,8 @@ def run_experiment(node_num, inputs_num, iterations):
         best_score = 0
 
         while True:
-            climb(model, fitness_function)
-            new_score = fitness_function(model)
+            climb(model, default_fitness_function)
+            new_score = default_fitness_function(model)
             if new_score <= best_score:
                 break
             best_score = new_score
@@ -81,16 +92,13 @@ def plot_landscape():
 
     model = NKModel(node_num, inputs_num)
 
-    fitness_contributions = {tuple(nodes): np.random.random(node_num) for nodes in get_all_nodes(node_num)}
-    def fitness_function(model):
-        fitness_contribution = fitness_contributions[tuple(model.nodes)]
+    fitness_contributions = {}
+    default_fitness_function = lambda model: fitness_function(model, fitness_contributions)
 
-        return sum([fitness_contribution.dot(get_gene_correlation(model, i)) for i in range(model.n)]) / model.n
-    
     fitnesses = []
     for nodes in get_all_nodes(node_num):
         model.nodes = nodes
-        fitnesses.append(fitness_function(model))
+        fitnesses.append(default_fitness_function(model))
     decimalizer = np.array([2 ** i for i in range(node_num)])
 
     plt.bar([decimalizer.dot(np.array(nodes)) for nodes in get_all_nodes(node_num)], fitnesses)
@@ -120,29 +128,20 @@ def plot_peak_neighborhood(compact=False):
     # Instead of generating all possible node combinations, we'll generate fitness
     # contributions only for the nodes we evaluate
     fitness_contributions = {}
+    default_fitness_function = lambda model: fitness_function(model, fitness_contributions)
     
-    def fitness_function(model):
-        nodes_tuple = tuple(model.nodes)
-        # Generate fitness contribution if we haven't seen this configuration
-        if nodes_tuple not in fitness_contributions:
-            fitness_contributions[nodes_tuple] = np.random.random(node_num)
-        
-        fitness_contribution = fitness_contributions[nodes_tuple]
-        # Pre-calculate gene correlations for efficiency
-        gene_correlations = [get_gene_correlation(model, i) for i in range(model.n)]
-        return sum(fitness_contribution.dot(gene_corr) for gene_corr in gene_correlations) / model.n
     
     # Initialize model with random starting position and find peak
     model.nodes = model.init_nodes()
     
     # Direct hill climbing to find a peak
-    current_fitness = fitness_function(model)
+    current_fitness = default_fitness_function(model)
     improved = True
     
     while improved:
         improved = False
-        climb(model, fitness_function)
-        new_fitness = fitness_function(model)
+        climb(model, default_fitness_function)
+        new_fitness = default_fitness_function(model)
         if new_fitness > current_fitness:
             current_fitness = new_fitness
             improved = True
@@ -164,7 +163,7 @@ def plot_peak_neighborhood(compact=False):
         model.nodes[i] = 1 - model.nodes[i]
         
         # Calculate fitness of this neighbor
-        neighbor_fitnesses[i] = fitness_function(model)
+        neighbor_fitnesses[i] = default_fitness_function(model)
         
         # Restore the original node
         model.nodes[i] = original_nodes[i]
@@ -218,5 +217,6 @@ def plot_peak_neighborhood(compact=False):
     print(f"Min neighbor fitness: {min(neighbor_fitnesses):.4f}")
 
 if __name__ == "__main__":
-    plot_efficiency()
-    # plot_peak_neighborhood(compact=True)
+    # plot_efficiency()
+    # plot_landscape()
+    plot_peak_neighborhood(compact=True)
