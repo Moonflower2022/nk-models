@@ -130,31 +130,80 @@ class NKCModelAsymmetric:
 
         return total / self.n2
     
-    def iterate(self):
-        """Perform one iteration of the coevolutionary process"""
+    def iterate(self, num_mutations_to_try1=1, num_mutations_to_try2=1):
+        """
+        Perform one iteration of the coevolutionary process
+        
+        Parameters:
+        -----------
+        num_mutations_to_try1 : int
+            Number of random mutations to try for species 1 before selecting the best one
+        num_mutations_to_try2 : int
+            Number of random mutations to try for species 2 before selecting the best one
+        """
         # Evolve species 1
         if self.n1 > 0:  # Only evolve if there are nodes
-            index = random.randint(0, self.n1 - 1)
-            self.nodes1[index] = 1 - self.nodes1[index]  # Flip the bit
-            new_fitness = self.fitness_function1()
+            best_fitness1 = self.current_fitness1
+            best_nodes1 = self.nodes1.copy()
             
-            # Keep the change if fitness improves, revert otherwise
-            if self.current_fitness1 < new_fitness:
-                self.current_fitness1 = new_fitness
-            else:
-                self.nodes1[index] = 1 - self.nodes1[index]  # Revert
+            # Try multiple possible mutations
+            for _ in range(num_mutations_to_try1):
+                # Make a copy of the current state
+                test_nodes1 = self.nodes1.copy()
+                
+                # Try a random mutation
+                index = random.randint(0, self.n1 - 1)
+                test_nodes1[index] = 1 - test_nodes1[index]  # Flip the bit
+                
+                # Temporarily apply the mutation to check fitness
+                original_nodes1 = self.nodes1.copy()
+                self.nodes1 = test_nodes1
+                new_fitness = self.fitness_function1()
+                
+                # If this is the best mutation so far, remember it
+                if new_fitness > best_fitness1:
+                    best_fitness1 = new_fitness
+                    best_nodes1 = test_nodes1.copy()
+                
+                # Restore original state for next trial
+                self.nodes1 = original_nodes1
+            
+            # Apply the best mutation found (if any improved fitness)
+            if best_fitness1 > self.current_fitness1:
+                self.nodes1 = best_nodes1
+                self.current_fitness1 = best_fitness1
 
         # Evolve species 2
         if self.n2 > 0:  # Only evolve if there are nodes
-            index = random.randint(0, self.n2 - 1)
-            self.nodes2[index] = 1 - self.nodes2[index]  # Flip the bit
-            new_fitness = self.fitness_function2()
+            best_fitness2 = self.current_fitness2
+            best_nodes2 = self.nodes2.copy()
             
-            # Keep the change if fitness improves, revert otherwise
-            if self.current_fitness2 < new_fitness:
-                self.current_fitness2 = new_fitness
-            else:
-                self.nodes2[index] = 1 - self.nodes2[index]  # Revert
+            # Try multiple possible mutations
+            for _ in range(num_mutations_to_try2):
+                # Make a copy of the current state
+                test_nodes2 = self.nodes2.copy()
+                
+                # Try a random mutation
+                index = random.randint(0, self.n2 - 1)
+                test_nodes2[index] = 1 - test_nodes2[index]  # Flip the bit
+                
+                # Temporarily apply the mutation to check fitness
+                original_nodes2 = self.nodes2.copy()
+                self.nodes2 = test_nodes2
+                new_fitness = self.fitness_function2()
+                
+                # If this is the best mutation so far, remember it
+                if new_fitness > best_fitness2:
+                    best_fitness2 = new_fitness
+                    best_nodes2 = test_nodes2.copy()
+                
+                # Restore original state for next trial
+                self.nodes2 = original_nodes2
+            
+            # Apply the best mutation found (if any improved fitness)
+            if best_fitness2 > self.current_fitness2:
+                self.nodes2 = best_nodes2
+                self.current_fitness2 = best_fitness2
 
         # Record fitness values
         self.fitnesses1.append(self.current_fitness1)
@@ -337,7 +386,7 @@ class NKCModelAsymmetric:
         return fig
 
 
-def run_multiple_simulations(n1, k1, c1, n2, k2, c2, iterations=100, num_runs=30):
+def run_multiple_simulations(n1, k1, c1, num_mutations_to_try1, n2, k2, c2, num_mutations_to_try2, iterations=100, num_runs=30):
     """
     Run multiple simulations with the same parameters and collect statistics
     
@@ -378,7 +427,7 @@ def run_multiple_simulations(n1, k1, c1, n2, k2, c2, iterations=100, num_runs=30
         
         # Run the simulation
         for iter in range(iterations):
-            model.iterate()
+            model.iterate(num_mutations_to_try1=num_mutations_to_try1, num_mutations_to_try2=num_mutations_to_try2)
             all_fitness1[run, iter + 1] = model.current_fitness1
             all_fitness2[run, iter + 1] = model.current_fitness2
         
@@ -418,41 +467,20 @@ def run_multiple_simulations(n1, k1, c1, n2, k2, c2, iterations=100, num_runs=30
         'total_runs': total_runs
     }
 
-def plot_average_fitness(stats, n1, k1, c1, n2, k2, c2, iterations=100, figsize=(12, 8), save_path=None):
-    """
-    Plot the average fitness evolution across multiple runs
-    
-    Parameters:
-    -----------
-    stats : dict
-        Statistics from run_multiple_simulations
-    n1, k1, c1, n2, k2, c2 : int
-        Parameters used in the simulations
-    iterations : int
-        Number of iterations in the simulations
-    figsize : tuple
-        Size of the figure (width, height)
-    save_path : str, optional
-        If provided, save the plot to the specified path
-    
-    Returns:
-    --------
-    matplotlib.figure.Figure
-        The generated figure
-    """
+def plot_average_fitness(stats, n1, k1, c1, num_mutations_to_try1, n2, k2, c2, num_mutations_to_try2, iterations=100, figsize=(12, 8), save_path=None):
     import matplotlib.pyplot as plt
     
     fig, ax = plt.subplots(figsize=figsize)
     x = np.arange(iterations + 1)
     
     # Plot average fitness trajectories with confidence intervals
-    ax.plot(x, stats['avg_fitness1'], 'b-', label=f'Species 1 (n={n1}, k={k1}, c={c1})')
+    ax.plot(x, stats['avg_fitness1'], 'b-', label=f'Species 1 (n={n1}, k={k1}, c={c1}, mutations={num_mutations_to_try1})')
     ax.fill_between(x, 
                    stats['avg_fitness1'] - stats['std_fitness1'], 
                    stats['avg_fitness1'] + stats['std_fitness1'], 
                    color='blue', alpha=0.2)
     
-    ax.plot(x, stats['avg_fitness2'], 'r-', label=f'Species 2 (n={n2}, k={k2}, c={c2})')
+    ax.plot(x, stats['avg_fitness2'], 'r-', label=f'Species 2 (n={n2}, k={k2}, c={c2}, mutations={num_mutations_to_try2})')
     ax.fill_between(x, 
                    stats['avg_fitness2'] - stats['std_fitness2'], 
                    stats['avg_fitness2'] + stats['std_fitness2'], 
@@ -482,106 +510,17 @@ def plot_average_fitness(stats, n1, k1, c1, n2, k2, c2, iterations=100, figsize=
     plt.show()
     return fig
 
-def compare_parameter_sets(param_sets, iterations=100, num_runs=30, figsize=(15, 10), save_path=None):
-    """
-    Compare multiple parameter sets to see which species configurations perform better
-    
-    Parameters:
-    -----------
-    param_sets : list of dicts
-        List of parameter dictionaries, each containing n1, k1, c1, n2, k2, c2
-    iterations : int
-        Number of iterations to run each simulation
-    num_runs : int
-        Number of simulations to run per parameter set
-    figsize : tuple
-        Size of the figure (width, height)
-    save_path : str, optional
-        If provided, save the plot to the specified path
-    
-    Returns:
-    --------
-    dict
-        Results for each parameter set
-    """
-    import matplotlib.pyplot as plt
-    
-    results = {}
-    
-    # Create a figure with subplots
-    fig, axes = plt.subplots(len(param_sets), 1, figsize=figsize, sharex=True)
-    if len(param_sets) == 1:
-        axes = [axes]  # Convert to list for consistent indexing
-    
-    # Run simulations for each parameter set
-    for i, params in enumerate(param_sets):
-        # Extract parameters
-        n1 = params['n1']
-        k1 = params['k1']
-        c1 = params['c1']
-        n2 = params['n2']
-        k2 = params['k2']
-        c2 = params['c2']
-        
-        # Create a unique key for this parameter set
-        param_key = f"n1={n1},k1={k1},c1={c1}_n2={n2},k2={k2},c2={c2}"
-        
-        # Run the simulations
-        stats = run_multiple_simulations(n1, k1, c1, n2, k2, c2, iterations, num_runs)
-        results[param_key] = stats
-        
-        # Plot on the corresponding subplot
-        ax = axes[i]
-        x = np.arange(iterations + 1)
-        
-        # Plot average fitness trajectories
-        ax.plot(x, stats['avg_fitness1'], 'b-', label=f'Species 1 (n={n1}, k={k1}, c={c1})')
-        ax.fill_between(x, 
-                       stats['avg_fitness1'] - stats['std_fitness1'], 
-                       stats['avg_fitness1'] + stats['std_fitness1'], 
-                       color='blue', alpha=0.2)
-        
-        ax.plot(x, stats['avg_fitness2'], 'r-', label=f'Species 2 (n={n2}, k={k2}, c={c2})')
-        ax.fill_between(x, 
-                       stats['avg_fitness2'] - stats['std_fitness2'], 
-                       stats['avg_fitness2'] + stats['std_fitness2'], 
-                       color='red', alpha=0.2)
-        
-        # Add win ratio information to the subplot
-        win_info = (f"Win Rates: Species 1: {stats['win_ratio1']:.2%} ({stats['wins1']} wins), "
-                    f"Species 2: {stats['win_ratio2']:.2%} ({stats['wins2']} wins), "
-                    f"Ties: {stats['tie_ratio']:.2%} ({stats['ties']} ties)")
-        
-        ax.text(0.5, 0.02, win_info, transform=ax.transAxes, horizontalalignment='center', fontsize=10)
-        
-        # Add labels and grid
-        ax.set_ylabel('Average Fitness')
-        ax.set_title(f'Parameter Set {i+1}: n1={n1}, k1={k1}, c1={c1} | n2={n2}, k2={k2}, c2={c2}')
-        ax.legend(loc='upper left')
-        ax.grid(True, linestyle='--', alpha=0.7)
-    
-    # Set common x-label
-    fig.text(0.5, 0.04, 'Iterations', ha='center', va='center', fontsize=12)
-    fig.suptitle(f'Comparison of {len(param_sets)} Parameter Sets ({num_runs} runs each)', fontsize=16)
-    
-    plt.tight_layout(rect=[0, 0.05, 1, 0.97])  # Make room for the suptitle
-    
-    # Save if path provided
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    
-    plt.show()
-    return results
-
 def run_one_match():
     # Example parameters for asymmetric species
     n1 = 5  # Number of nodes in species 1
     k1 = 2  # Number of internal connections per node in species 1
     c1 = 1  # Number of inputs from species 2 to species 1
+    num_mutations_to_try1 = 1
     
     n2 = 7  # Number of nodes in species 2
     k2 = 3  # Number of internal connections per node in species 2
-    c2 = 2  # Number of inputs from species 1 to species 2
+    c2 = 2  # Number of inputs from species 1 to species
+    num_mutations_to_try2 = 1
     
     # Example 1: Run a single simulation and visualize it
     print("Running a single simulation...")
@@ -589,7 +528,7 @@ def run_one_match():
     
     iterations = 100
     for _ in range(iterations):
-        nkc_model.iterate()
+        nkc_model.iterate(num_mutations_to_try1=num_mutations_to_try1, num_mutations_to_try2=num_mutations_to_try2)
     
     # Plot results of single run
     nkc_model.plot_fitness(title=f"Fitness Over Time (Asymmetric NKC Model)")
@@ -597,39 +536,22 @@ def run_one_match():
 
 def run_multiple_matches():
     # Example parameters for asymmetric species
-    n1 = 10  # Number of nodes in species 1
+    n1 = 5  # Number of nodes in species 1
     k1 = 2  # Number of internal connections per node in species 1
     c1 = 1  # Number of inputs from species 2 to species 1
+    num_mutations_to_try1 = 1
     
     n2 = 5  # Number of nodes in species 2
     k2 = 2  # Number of internal connections per node in species 2
     c2 = 1  # Number of inputs from species 1 to species 2
+    num_mutations_to_try2 = 1
 
     iterations = 100
 
     # Example 2: Run multiple simulations and analyze statistics
     print("\nRunning multiple simulations to gather statistics...")
-    stats = run_multiple_simulations(n1=n1, k1=k1, c1=c1, n2=n2, k2=k2, c2=c2, iterations=iterations, num_runs=10000)
-    plot_average_fitness(stats, n1, k1, c1, n2, k2, c2, iterations)
-
-def compare_parameter_configurations():
-
-    # Example 3: Compare different parameter sets
-    print("\nComparing different parameter configurations...")
-    param_sets = [
-        # Base case from above
-        {'n1': 5, 'k1': 2, 'c1': 1, 'n2': 7, 'k2': 3, 'c2': 2},
-        
-        # Balanced species
-        {'n1': 6, 'k1': 2, 'c1': 2, 'n2': 6, 'k2': 2, 'c2': 2},
-        
-        # Highly connected species 1, sparsely connected species 2
-        {'n1': 5, 'k1': 4, 'c1': 3, 'n2': 8, 'k2': 1, 'c2': 1},
-    ]
-
-    iterations = 100
-    
-    results = compare_parameter_sets(param_sets, iterations=iterations, num_runs=20)
+    stats = run_multiple_simulations(n1=n1, k1=k1, c1=c1, num_mutations_to_try1=num_mutations_to_try1, n2=n2, k2=k2, c2=c2, num_mutations_to_try2=num_mutations_to_try2, iterations=iterations, num_runs=10000)
+    plot_average_fitness(stats, n1, k1, c1, num_mutations_to_try1, n2, k2, c2, num_mutations_to_try2, iterations)
 
 if __name__ == "__main__":
     run_multiple_matches()
