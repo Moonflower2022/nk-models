@@ -1,12 +1,6 @@
-import sys
-import os
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-
-# Assuming nk_model.py is in the parent directory
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from nk_model import NKModel
 
 class MultiSpeciesNKC:
     def __init__(self, n, k, c, connectivity_matrix):
@@ -210,3 +204,4 @@ if __name__ == "__main__":
     
     # Plot results
     model.plot(title=f"{num_species} species NKC Model Fitnesses (n: {n}, k: {k}, c: {c})")
+    print("average ending fitness:", sum([model.species[i]["fitnesses"][-1] for i in range(num_species)]) / num_species)
