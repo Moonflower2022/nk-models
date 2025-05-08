@@ -337,7 +337,243 @@ class NKCModelAsymmetric:
         return fig
 
 
-if __name__ == "__main__":
+def run_multiple_simulations(n1, k1, c1, n2, k2, c2, iterations=100, num_runs=30):
+    """
+    Run multiple simulations with the same parameters and collect statistics
+    
+    Parameters:
+    -----------
+    n1, k1, c1 : int
+        Parameters for species 1
+    n2, k2, c2 : int
+        Parameters for species 2
+    iterations : int
+        Number of iterations to run each simulation
+    num_runs : int
+        Number of simulations to run
+    
+    Returns:
+    --------
+    dict
+        Statistics about the runs including win ratios and average fitness trajectories
+    """
+    # Initialize arrays to store fitness trajectories
+    all_fitness1 = np.zeros((num_runs, iterations + 1))
+    all_fitness2 = np.zeros((num_runs, iterations + 1))
+    
+    # Track wins (which species had higher final fitness)
+    wins1 = 0
+    wins2 = 0
+    ties = 0
+    
+    # Run the simulations
+    for run in range(num_runs):
+        print(f"run {run+1}/{num_runs}", end="\r")
+        # Create a new model instance
+        model = NKCModelAsymmetric(n1=n1, k1=k1, c1=c1, n2=n2, k2=k2, c2=c2)
+        
+        # Record initial fitness
+        all_fitness1[run, 0] = model.current_fitness1
+        all_fitness2[run, 0] = model.current_fitness2
+        
+        # Run the simulation
+        for iter in range(iterations):
+            model.iterate()
+            all_fitness1[run, iter + 1] = model.current_fitness1
+            all_fitness2[run, iter + 1] = model.current_fitness2
+        
+        # Determine the winner
+        if model.current_fitness1 > model.current_fitness2:
+            wins1 += 1
+        elif model.current_fitness2 > model.current_fitness1:
+            wins2 += 1
+        else:
+            ties += 1
+    
+    # Calculate win ratios
+    total_runs = wins1 + wins2 + ties
+    win_ratio1 = wins1 / total_runs
+    win_ratio2 = wins2 / total_runs
+    tie_ratio = ties / total_runs
+    
+    # Calculate average fitness at each iteration
+    avg_fitness1 = np.mean(all_fitness1, axis=0)
+    avg_fitness2 = np.mean(all_fitness2, axis=0)
+    
+    # Calculate standard deviation of fitness at each iteration
+    std_fitness1 = np.std(all_fitness1, axis=0)
+    std_fitness2 = np.std(all_fitness2, axis=0)
+    
+    return {
+        'avg_fitness1': avg_fitness1,
+        'avg_fitness2': avg_fitness2,
+        'std_fitness1': std_fitness1,
+        'std_fitness2': std_fitness2,
+        'win_ratio1': win_ratio1,
+        'win_ratio2': win_ratio2,
+        'tie_ratio': tie_ratio,
+        'wins1': wins1,
+        'wins2': wins2,
+        'ties': ties,
+        'total_runs': total_runs
+    }
+
+def plot_average_fitness(stats, n1, k1, c1, n2, k2, c2, iterations=100, figsize=(12, 8), save_path=None):
+    """
+    Plot the average fitness evolution across multiple runs
+    
+    Parameters:
+    -----------
+    stats : dict
+        Statistics from run_multiple_simulations
+    n1, k1, c1, n2, k2, c2 : int
+        Parameters used in the simulations
+    iterations : int
+        Number of iterations in the simulations
+    figsize : tuple
+        Size of the figure (width, height)
+    save_path : str, optional
+        If provided, save the plot to the specified path
+    
+    Returns:
+    --------
+    matplotlib.figure.Figure
+        The generated figure
+    """
+    import matplotlib.pyplot as plt
+    
+    fig, ax = plt.subplots(figsize=figsize)
+    x = np.arange(iterations + 1)
+    
+    # Plot average fitness trajectories with confidence intervals
+    ax.plot(x, stats['avg_fitness1'], 'b-', label=f'Species 1 (n={n1}, k={k1}, c={c1})')
+    ax.fill_between(x, 
+                   stats['avg_fitness1'] - stats['std_fitness1'], 
+                   stats['avg_fitness1'] + stats['std_fitness1'], 
+                   color='blue', alpha=0.2)
+    
+    ax.plot(x, stats['avg_fitness2'], 'r-', label=f'Species 2 (n={n2}, k={k2}, c={c2})')
+    ax.fill_between(x, 
+                   stats['avg_fitness2'] - stats['std_fitness2'], 
+                   stats['avg_fitness2'] + stats['std_fitness2'], 
+                   color='red', alpha=0.2)
+    
+    # Add win ratio information to the plot
+    win_info = (f"Win Rates (out of {stats['total_runs']} runs):\n"
+                f"Species 1: {stats['win_ratio1']:.2%} ({stats['wins1']} wins)\n"
+                f"Species 2: {stats['win_ratio2']:.2%} ({stats['wins2']} wins)\n"
+                f"Ties: {stats['tie_ratio']:.2%} ({stats['ties']} ties)")
+    
+    plt.figtext(0.5, 0.01, win_info, wrap=True, horizontalalignment='center', fontsize=12)
+    
+    # Add labels and title
+    ax.set_xlabel('Iterations')
+    ax.set_ylabel('Average Fitness')
+    ax.set_title(f'Average Fitness Over {stats["total_runs"]} Simulations\n(Shaded areas show standard deviation)')
+    ax.legend()
+    ax.grid(True, linestyle='--', alpha=0.7)
+    
+    plt.tight_layout(rect=[0, 0.08, 1, 1])  # Make room for the text at the bottom
+    
+    # Save if path provided
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    
+    plt.show()
+    return fig
+
+def compare_parameter_sets(param_sets, iterations=100, num_runs=30, figsize=(15, 10), save_path=None):
+    """
+    Compare multiple parameter sets to see which species configurations perform better
+    
+    Parameters:
+    -----------
+    param_sets : list of dicts
+        List of parameter dictionaries, each containing n1, k1, c1, n2, k2, c2
+    iterations : int
+        Number of iterations to run each simulation
+    num_runs : int
+        Number of simulations to run per parameter set
+    figsize : tuple
+        Size of the figure (width, height)
+    save_path : str, optional
+        If provided, save the plot to the specified path
+    
+    Returns:
+    --------
+    dict
+        Results for each parameter set
+    """
+    import matplotlib.pyplot as plt
+    
+    results = {}
+    
+    # Create a figure with subplots
+    fig, axes = plt.subplots(len(param_sets), 1, figsize=figsize, sharex=True)
+    if len(param_sets) == 1:
+        axes = [axes]  # Convert to list for consistent indexing
+    
+    # Run simulations for each parameter set
+    for i, params in enumerate(param_sets):
+        # Extract parameters
+        n1 = params['n1']
+        k1 = params['k1']
+        c1 = params['c1']
+        n2 = params['n2']
+        k2 = params['k2']
+        c2 = params['c2']
+        
+        # Create a unique key for this parameter set
+        param_key = f"n1={n1},k1={k1},c1={c1}_n2={n2},k2={k2},c2={c2}"
+        
+        # Run the simulations
+        stats = run_multiple_simulations(n1, k1, c1, n2, k2, c2, iterations, num_runs)
+        results[param_key] = stats
+        
+        # Plot on the corresponding subplot
+        ax = axes[i]
+        x = np.arange(iterations + 1)
+        
+        # Plot average fitness trajectories
+        ax.plot(x, stats['avg_fitness1'], 'b-', label=f'Species 1 (n={n1}, k={k1}, c={c1})')
+        ax.fill_between(x, 
+                       stats['avg_fitness1'] - stats['std_fitness1'], 
+                       stats['avg_fitness1'] + stats['std_fitness1'], 
+                       color='blue', alpha=0.2)
+        
+        ax.plot(x, stats['avg_fitness2'], 'r-', label=f'Species 2 (n={n2}, k={k2}, c={c2})')
+        ax.fill_between(x, 
+                       stats['avg_fitness2'] - stats['std_fitness2'], 
+                       stats['avg_fitness2'] + stats['std_fitness2'], 
+                       color='red', alpha=0.2)
+        
+        # Add win ratio information to the subplot
+        win_info = (f"Win Rates: Species 1: {stats['win_ratio1']:.2%} ({stats['wins1']} wins), "
+                    f"Species 2: {stats['win_ratio2']:.2%} ({stats['wins2']} wins), "
+                    f"Ties: {stats['tie_ratio']:.2%} ({stats['ties']} ties)")
+        
+        ax.text(0.5, 0.02, win_info, transform=ax.transAxes, horizontalalignment='center', fontsize=10)
+        
+        # Add labels and grid
+        ax.set_ylabel('Average Fitness')
+        ax.set_title(f'Parameter Set {i+1}: n1={n1}, k1={k1}, c1={c1} | n2={n2}, k2={k2}, c2={c2}')
+        ax.legend(loc='upper left')
+        ax.grid(True, linestyle='--', alpha=0.7)
+    
+    # Set common x-label
+    fig.text(0.5, 0.04, 'Iterations', ha='center', va='center', fontsize=12)
+    fig.suptitle(f'Comparison of {len(param_sets)} Parameter Sets ({num_runs} runs each)', fontsize=16)
+    
+    plt.tight_layout(rect=[0, 0.05, 1, 0.97])  # Make room for the suptitle
+    
+    # Save if path provided
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    
+    plt.show()
+    return results
+
+def run_one_match():
     # Example parameters for asymmetric species
     n1 = 5  # Number of nodes in species 1
     k1 = 2  # Number of internal connections per node in species 1
@@ -347,13 +583,55 @@ if __name__ == "__main__":
     k2 = 3  # Number of internal connections per node in species 2
     c2 = 2  # Number of inputs from species 1 to species 2
     
-    # Create the model with asymmetric parameters
+    # Example 1: Run a single simulation and visualize it
+    print("Running a single simulation...")
     nkc_model = NKCModelAsymmetric(n1=n1, k1=k1, n2=n2, k2=k2, c1=c1, c2=c2)
-
-    # Run simulation
+    
     iterations = 100
     for _ in range(iterations):
         nkc_model.iterate()
-
-    # Plot results
+    
+    # Plot results of single run
     nkc_model.plot_fitness(title=f"Fitness Over Time (Asymmetric NKC Model)")
+    nkc_model.show_model_graph()
+
+def run_multiple_matches():
+    # Example parameters for asymmetric species
+    n1 = 10  # Number of nodes in species 1
+    k1 = 2  # Number of internal connections per node in species 1
+    c1 = 1  # Number of inputs from species 2 to species 1
+    
+    n2 = 5  # Number of nodes in species 2
+    k2 = 2  # Number of internal connections per node in species 2
+    c2 = 1  # Number of inputs from species 1 to species 2
+
+    iterations = 100
+
+    # Example 2: Run multiple simulations and analyze statistics
+    print("\nRunning multiple simulations to gather statistics...")
+    stats = run_multiple_simulations(n1=n1, k1=k1, c1=c1, n2=n2, k2=k2, c2=c2, iterations=iterations, num_runs=10000)
+    plot_average_fitness(stats, n1, k1, c1, n2, k2, c2, iterations)
+
+def compare_parameter_configurations():
+
+    # Example 3: Compare different parameter sets
+    print("\nComparing different parameter configurations...")
+    param_sets = [
+        # Base case from above
+        {'n1': 5, 'k1': 2, 'c1': 1, 'n2': 7, 'k2': 3, 'c2': 2},
+        
+        # Balanced species
+        {'n1': 6, 'k1': 2, 'c1': 2, 'n2': 6, 'k2': 2, 'c2': 2},
+        
+        # Highly connected species 1, sparsely connected species 2
+        {'n1': 5, 'k1': 4, 'c1': 3, 'n2': 8, 'k2': 1, 'c2': 1},
+    ]
+
+    iterations = 100
+    
+    results = compare_parameter_sets(param_sets, iterations=iterations, num_runs=20)
+
+if __name__ == "__main__":
+    run_multiple_matches()
+    
+    
