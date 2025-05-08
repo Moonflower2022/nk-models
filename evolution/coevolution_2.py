@@ -104,8 +104,8 @@ class NKCModel(NKModel):
         
         # Plot both fitness trajectories
         iterations = range(len(self.fitnesses))
-        ax.plot(iterations, self.fitnesses, label='Landscape 1', color='blue')
-        ax.plot(iterations, self.fitnesses2, label='Landscape 2', color='red')
+        ax.plot(iterations, self.fitnesses, label='Species 1', color='blue')
+        ax.plot(iterations, self.fitnesses2, label='Species 2', color='red')
         
         # Add labels and title
         ax.set_xlabel('Iterations')
