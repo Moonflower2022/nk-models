@@ -8,7 +8,7 @@ for a neuroscience project and evolution project in a computational biology clas
 
 for the neuroscience project, were studying consciousness and the modeling of human brains.
 one of the labs was based on using NK models as a way to model human neural activity.
-we started with using single NK models and analyzing their behavior (usually related to attractors), but then I wanted to do an extension on ways that we can combine NK models to produce patterns that we learned brains do in (A Universe of Consciousness](https://en.wikipedia.org/wiki/A_Universe_of_Consciousness). One example of this is reentry, and that is what I tried to model with the selective connections between the NK models.
+we started with using single NK models and analyzing their behavior (usually related to attractors), but then I wanted to do an extension on ways that we can combine NK models to produce patterns that we learned brains do in [A Universe of Consciousness](https://en.wikipedia.org/wiki/A_Universe_of_Consciousness). One example of this is reentry, and that is what I tried to model with the selective connections between the NK models.
 
 as an extension, my teacher challenged me to make more and more complex combinations of the models that exhibit properties of brains as a way to model consciousness and help us (humanity) learn things about the functioning of consciousness.
 
