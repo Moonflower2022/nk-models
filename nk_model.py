@@ -3,6 +3,7 @@ from itertools import product
 import copy
 from collections import defaultdict
 
+
 def add_binary_array(nodes):
     """turn a list of boolean ints that represents binary (left is higher) to a decimal int"""
     binary_string = "".join(map(str, nodes))
@@ -25,6 +26,7 @@ def get_new_node(nodes, input_paths, functions, i):
     return functions[i][
         sum(nodes[input_paths[i][j]] * 2**j for j in range(len(input_paths[i])))
     ]
+
 
 def get_all_nodes(node_num):
     return product((0, 1), repeat=node_num)
@@ -72,7 +74,9 @@ def iterate_until_cycle(
     pass
 
 
-def get_num_cycles(node_num, input_num, verbose=False, input_paths=None, functions=None):
+def get_num_cycles(
+    node_num, input_num, verbose=False, input_paths=None, functions=None
+):
     cycle_starts = []
     cycled_nodes = []
 
@@ -103,11 +107,14 @@ def get_num_cycles(node_num, input_num, verbose=False, input_paths=None, functio
 
     return len(cycle_starts)
 
+
 def analyze(model):
-    print(model.get_nodes_attractor_pairs())
-    print(model.get_num_attrators())
-    print(model.get_attractor_values())
-    model.generate_graph()
+    print("nodes_attractor_pairs", model.get_nodes_attractor_pairs())
+    print("num_attractors", model.get_num_attrators())
+    print("attractor_values", model.get_attractor_values())
+    model.generate_network_graph()
+    model.generate_state_transitions_graph()
+
 
 class NKModel:
     def __init__(self, n, k, input_paths=None, functions=None, nodes=None):
@@ -130,16 +137,20 @@ class NKModel:
 
     def iterate(self, nodes=None):
         if not nodes:
-            self.nodes = tuple([
-                get_new_node(self.nodes, self.input_paths, self.functions, i)
-                for i in range(self.n)
-            ])
+            self.nodes = tuple(
+                [
+                    get_new_node(self.nodes, self.input_paths, self.functions, i)
+                    for i in range(self.n)
+                ]
+            )
             return self.nodes
         else:
-            return tuple([
-                get_new_node(nodes, self.input_paths, self.functions, i)
-                for i in range(self.n)
-            ])
+            return tuple(
+                [
+                    get_new_node(nodes, self.input_paths, self.functions, i)
+                    for i in range(self.n)
+                ]
+            )
 
     def get_nodes_attractor_pairs(self, verbose=False):
         nodes_attractor_pairs = {}
@@ -151,20 +162,15 @@ class NKModel:
             self.nodes = nodes
             if nodes in visited_nodes:
                 continue
-                
+
             current_history = []
 
             while True:
                 if self.nodes in current_history:
                     cycle_start_index = current_history.index(self.nodes)
-                    attractor = current_history[
-                        cycle_start_index
-                    ] 
+                    attractor = current_history[cycle_start_index]
 
                     for past_node in current_history:
-                        if past_node == (0, 0, 0, 1, 0):
-                            print("iersnt", current_history)
-                            print("attr", attractor)
                         nodes_attractor_pairs[past_node] = attractor
                         visited_nodes.add(past_node)
 
@@ -179,16 +185,16 @@ class NKModel:
                 self.iterate()
 
         return nodes_attractor_pairs
-    
+
     def get_num_attrators(self):
         return len(set(self.get_nodes_attractor_pairs().values()))
-    
+
     def get_attractor_values(self):
         attractor_values = defaultdict(list)
         for value, attractor in self.get_nodes_attractor_pairs().items():
             attractor_values[value].append(attractor)
         return attractor_values
-    
+
     def track_progression(self):
         seen_nodes = []
         while not self.nodes in seen_nodes:
@@ -197,30 +203,64 @@ class NKModel:
             self.iterate()
         print(self.nodes)
 
-    def generate_graph(self):
+    def generate_state_transitions_graph(self):
         import graphviz
 
-        dot = graphviz.Digraph(comment='NKModel Graph')
+        dot = graphviz.Digraph(
+            comment="NKModel Graph",
+            graph_attr={
+                'rankdir': 'TB',        # Top to Bottom orientation  
+                'ranksep': '2.0',       # More vertical spacing
+                'nodesep': '0.2',       # Minimal horizontal spacing
+                'size': '6,16',         # Even narrower width (6 inches)
+                'ratio': 'compress',
+                'concentrate': 'true',   # Merge parallel edges
+            }
+        )
+        
         visited_nodes = set()
-
         all_nodes = product((0, 1), repeat=self.n)
 
         for nodes in all_nodes:
             if nodes in visited_nodes:
                 continue
+            
             dot.node(str(nodes))
+            
             current_nodes = nodes
-            while not current_nodes in visited_nodes:
+            while current_nodes not in visited_nodes:
                 visited_nodes.add(current_nodes)
                 next_nodes = self.iterate(current_nodes)
                 dot.edge(str(current_nodes), str(next_nodes))
                 current_nodes = next_nodes
-        dot.view()
+        
+        dot.view("graphviz_files/nk_state_transitions_graph")
 
+    def generate_network_graph(self):
+        import graphviz
+        import math
+        
+        dot = graphviz.Digraph(comment="NK Network Structure", engine='neato', graph_attr={'splines': 'true'})
+        dot.attr(rankdir='LR')
+        dot.attr('node', shape='circle')
+        
+        # Calculate positions for circular layout
+        for i in range(self.n):
+            angle = 2 * math.pi * i / self.n
+            x = math.cos(angle) * 3  # radius of 3
+            y = math.sin(angle)
+            dot.node(str(i), pos=f"{x},{y}!")
+        
+        # Add edges showing input connections  
+        for i in range(self.n):
+            for input_node in self.input_paths[i]:
+                dot.edge(str(input_node), str(i))
+        
+        dot.view("graphviz_files/nk_network_graph")
 
     def __str__(self):
         return f"<{self.__class__} object (input_paths: {self.input_paths}, functions: {self.functions})>"
-    
+
     def __repr__(self):
         return self.__str__()
 
@@ -231,7 +271,13 @@ class MutableNKModel(NKModel):
         self.mutation_probability = mutation_probability
 
     def copy(self):
-        return MutableNKModel(self.n, self.k, mutation_probability=self.mutation_probability, input_paths=[input_path.copy() for input_path in self.input_paths], functions=[function.copy() for function in self.functions])
+        return MutableNKModel(
+            self.n,
+            self.k,
+            mutation_probability=self.mutation_probability,
+            input_paths=[input_path.copy() for input_path in self.input_paths],
+            functions=[function.copy() for function in self.functions],
+        )
 
     def mutate_input_paths(self):
         for i in range(len(self.input_paths)):
@@ -251,12 +297,19 @@ class MutableNKModel(NKModel):
         self.mutate_input_paths()
         self.mutate_functions()
 
+
 class EvolutionaryNKModel(MutableNKModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def copy(self):
-        return EvolutionaryNKModel(self.n, self.k, mutation_probability=self.mutation_probability, input_paths=[input_path.copy() for input_path in self.input_paths], functions=[function.copy() for function in self.functions])
+        return EvolutionaryNKModel(
+            self.n,
+            self.k,
+            mutation_probability=self.mutation_probability,
+            input_paths=[input_path.copy() for input_path in self.input_paths],
+            functions=[function.copy() for function in self.functions],
+        )
 
     def robustness_score(self):
         base_model = self.copy()
@@ -268,22 +321,28 @@ class EvolutionaryNKModel(MutableNKModel):
                 self.input_paths[i][j] = random.choice(
                     list(set(range(self.n)) - {self.input_paths[i][j]})
                 )
-                total_percentage_same_attractor += self.percentage_same_attractor(base_model)
+                total_percentage_same_attractor += self.percentage_same_attractor(
+                    base_model
+                )
                 self.input_paths[i][j] = temp
-                    
 
         for i in range(len(self.functions)):
             for j in range(len(self.functions[i])):
                 self.functions[i][j] = 1 - self.functions[i][j]
-                total_percentage_same_attractor += self.percentage_same_attractor(base_model)
+                total_percentage_same_attractor += self.percentage_same_attractor(
+                    base_model
+                )
                 self.functions[i][j] = 1 - self.functions[i][j]
-        return total_percentage_same_attractor / (len(self.input_paths) * len(self.input_paths[0]) + len(self.functions) * len(self.functions[0]))
-    
+        return total_percentage_same_attractor / (
+            len(self.input_paths) * len(self.input_paths[0])
+            + len(self.functions) * len(self.functions[0])
+        )
+
     def low_attractor_num_penalty(self):
         if self.get_num_attrators() == 1:
             return -0.5
         return 0
-    
+
     def fitness_score(self):
         return self.robustness_score() + self.low_attractor_num_penalty()
 
