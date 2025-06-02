@@ -1,5 +1,6 @@
 // NKModel Graph
 digraph {
+	graph [concentrate=true nodesep=0.2 rankdir=TB ranksep=2.0 ratio=compress size="6,16"]
 	"(0, 0, 0, 0, 0)"
 	"(0, 0, 0, 0, 0)" -> "(0, 0, 0, 0, 0)"
 	"(0, 0, 0, 0, 1)"
